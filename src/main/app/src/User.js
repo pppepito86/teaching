@@ -5,21 +5,22 @@ import Swal from 'sweetalert2';
 
 function User() {
 
+  const [online, setOnline] = useState(false);
+
   const screenVideoRef = useRef();
-  const screenCanvasRef = useRef();
 
-  const [conn, setConn] = useState();
-  const [peerConnection , setPeerConnection ] = useState();
+  const socketRef = useRef();
+  const peerConnectionRef = useRef();
 
+  useEffect(async () => {
+    await connectSocket();
+    await enterName();
+    await shareScreen();
 
-  const constraints = {
-    video: {
-        cursor: "always"
-        
-    },
-    audio: false
-    // deviceId: "screen:0:0",
-  };
+    return () => {
+      stopSharing();
+    }
+  }, []);
 
   function waitForOpenSocket(socket) {
     return new Promise((resolve) => {
@@ -33,97 +34,133 @@ function User() {
     });
   }
 
-  function startScreen() {
-    navigator.mediaDevices.getDisplayMedia(constraints).then(async (screenStream) => {
+  async function connectSocket() {
+    console.log("Web socket: connecting...");
+    socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+    await waitForOpenSocket(socketRef.current);
+
+    socketRef.current.onmessage = function (event) {
+      var data = JSON.parse(event.data);
+      console.log("p2p: receiving answer");
+      if (data.event === 'answer') {
+        peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
+      }
+      if (data.event === 'connect') {
+        connectPeer();
+      }
+    }
+
+    console.log("Web socket: connected");
+  }
+
+  function send(event, data) {
+    socketRef.current.send(JSON.stringify({
+      event : event,
+      data : data
+    }));
+  }
+
+  async function enterName() {
+    await Swal.fire({
+      title: 'Your name',
+      input: 'text',
+      inputAttributes: {
+        autocapitalize: 'off'
+      },
+      showCancelButton: false,
+      confirmButtonText: 'OK',
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => false
+    }).then((result) => {
+      console.log("Name: sending...");
+      send("name", result);
+      console.log("Name: sent");
+    })
+  }
+
+  async function shareScreen() {
+    await Swal.fire({
+      title: 'Share screen',
+      text: 'Allow screen sharing',
+      icon: "warning"
+    }).then(async (agree) => {
+      await startSharing();
+    });
+  }
+
+  function stopSharing() {
+    screenVideoRef.current.srcObject && screenVideoRef.current.srcObject.getVideoTracks().forEach(function(track) {
+      track.stop();
+    });
+    setOnline(false);
+  }
+
+  async function startSharing() {
+    const constraints = {
+      video: {
+          cursor: "always"
+      },
+      audio: false
+    };
+    
+    await navigator.mediaDevices.getDisplayMedia(constraints).then(async (screenStream) => {
       screenVideoRef.current.srcObject = screenStream;
       screenVideoRef.current.play();
-      screenStream.getVideoTracks()[0].onended = () => {}
-
-      var conn = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
-      await waitForOpenSocket(conn);
-
-      conn.onmessage = function (event) {
-        var data = JSON.parse(event.data);
-        console.log("answer" + event.data);
-        if (data.event === 'answer') {
-          peerConnection.setRemoteDescription(new RTCSessionDescription(data.data));
-        }
-      }
-  
-      var servers;
-      var peerConnection = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: 'stun:stun.l.google.com:19302'
-          }
-        ]
-      });
-  
-      peerConnection.onicecandidate = function(event) {
-        if (event.candidate) {
-          conn.send(JSON.stringify({
-            event : "candidate",
-            data : event.candidate
-          }))
-        }
-      }
-  
-      screenStream.getTracks().forEach(track => peerConnection.addTrack(track, screenStream));
-
-      peerConnection.createOffer().then(function(offer) {
-        console.log("offering");
-        return peerConnection.setLocalDescription(offer);
-      })
-      .then(function() {
-        conn.send(JSON.stringify({
-          event: 'offer',
-          data: peerConnection.localDescription
-        }));
-      })
-      .catch(function(reason) {
-        // An error occurred, so handle the failure to connect
-      });
-
+      screenStream.getVideoTracks()[0].onended = () => {setOnline(false);}
+      setOnline(true);
     }).catch(function(e) {
     });
   }
 
-  useEffect(async () => {
-    Swal.fire({
-        title: 'Share screen',
-        text: 'Allow screen sharing',
-        icon: "warning"
-    }).then(async (agree) => {
-      startScreen();
+  function connectPeer() {
+    if (peerConnectionRef.current) {
+      //peerConnectionRef.current.close();
+    }
+    
+    peerConnectionRef.current = new RTCPeerConnection({
+      iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
     });
 
-    return () => {
-      screenVideoRef.current.srcObject && screenVideoRef.current.srcObject.getVideoTracks().forEach(function(track) {
-        track.stop();
-      });
+    peerConnectionRef.current.onicecandidate = function(event) {
+      if (event.candidate) {
+        socketRef.current.send(JSON.stringify({
+          event : "candidate",
+          data : event.candidate
+        }))
+      }
     }
-  }, []);
+
+    screenVideoRef.current.srcObject.getTracks().forEach(track => peerConnectionRef.current.addTrack(track, screenVideoRef.current.srcObject));
+
+    peerConnectionRef.current.createOffer().then(function(offer) {
+      console.log("offering");
+      return peerConnectionRef.current.setLocalDescription(offer);
+    })
+    .then(function() {
+      socketRef.current.send(JSON.stringify({
+        event: 'offer',
+        data: peerConnectionRef.current.localDescription
+      }));
+    })
+    .catch(function(reason) {
+      // An error occurred, so handle the failure to connect
+    });
+
+  }
 
   return (
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>
-          User Edit <code>src/App.js</code> and save to reload.
+          {online?'ONLINE':'NOT ONLINE'}
         </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        {!online && <a className="App-link" href="/" onClick={(e) => {e.preventDefault(); shareScreen()}}>
+          CONNECT
+        </a>}
       </header>
-      {/* <div style={{display: 'none'}}> */}
-      <div>
+      <div style={{display: 'none'}}>
         <video ref={screenVideoRef} />
-        <canvas ref={screenCanvasRef} />
       </div>
     </div>
   );
