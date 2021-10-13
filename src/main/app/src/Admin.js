@@ -82,6 +82,12 @@ function Admin() {
       ]
     });
 
+    peerConnectionRef.current.onicecandidate = function(event) {
+      if (event.candidate) {
+        send("candidate", event.candidate);
+      }
+    }
+
     peerConnectionRef.current.ontrack = function(event) {
       console.log("stream received");
       screenVideoRef.current.srcObject = event.streams[0];

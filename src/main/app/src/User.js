@@ -42,6 +42,10 @@ function User() {
     socketRef.current.onmessage = function (event) {
       var data = JSON.parse(event.data);
       console.log("p2p: receiving answer");
+      if (data.event === 'candidate') {
+        console.log("add candidate" + data);
+        peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.data));
+      }
       if (data.event === 'answer') {
         peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
       }
@@ -121,13 +125,13 @@ function User() {
       iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
     });
 
+    screenVideoRef.current.srcObject.getTracks().forEach(track => peerConnectionRef.current.addTrack(track, screenVideoRef.current.srcObject));
+
     peerConnectionRef.current.onicecandidate = function(event) {
       if (event.candidate) {
         send("candidate", event.candidate);
       }
     }
-
-    screenVideoRef.current.srcObject.getTracks().forEach(track => peerConnectionRef.current.addTrack(track, screenVideoRef.current.srcObject));
 
     peerConnectionRef.current.createOffer().then(function(offer) {
       console.log("offering");
