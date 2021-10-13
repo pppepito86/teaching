@@ -74,6 +74,8 @@ public class SocketHandler extends TextWebSocketHandler {
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
 		System.out.println("Connection removed: " + session.getId());
+		if (adminSession != null && adminSession.getId().equals(session.getId())) adminSession = null;
+		if (clientSession != null && clientSession.getId().equals(session.getId())) clientSession = null;
 		userToSessionIdMap.remove(sessionIdToUserMap.get(session.getId()));
 		sessionIdToUserMap.remove(session.getId());
 		sessionIdToSessionMap.remove(session.getId());

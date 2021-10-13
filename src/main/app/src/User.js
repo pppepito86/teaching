@@ -37,6 +37,19 @@ function User() {
   async function connectSocket() {
     console.log("Web socket: connecting...");
     socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+
+    socketRef.current.onclose = function(e) {
+      console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
+      setTimeout(function() {
+        connectSocket();
+      }, 1000);
+    };
+  
+    socketRef.current.onerror = function(err) {
+      console.error('Socket encountered error: ', err.message, 'Closing socket');
+      socketRef.current.close();
+    };
+
     await waitForOpenSocket(socketRef.current);
 
     socketRef.current.onmessage = function (event) {
@@ -117,9 +130,9 @@ function User() {
   }
 
   function connectPeer() {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
+    if (peerConnectionRef.current) peerConnectionRef.current.close();
+    if (!screenVideoRef.current.srcObject) return;
+
     
     peerConnectionRef.current = new RTCPeerConnection({
       iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
@@ -147,7 +160,7 @@ function User() {
   }
 
   return (
-    <div className="App">
+    <div id='app' className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>

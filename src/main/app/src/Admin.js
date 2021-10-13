@@ -32,6 +32,23 @@ function Admin() {
   async function connectSocket() {
     console.log("Web socket: connecting...");
     socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+
+    socketRef.current.onopen = function() {
+      send('name', {value: 'admin'});
+    }
+
+    socketRef.current.onclose = function(e) {
+      console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
+      setTimeout(function() {
+        connectSocket();
+      }, 1000);
+    };
+  
+    socketRef.current.onerror = function(err) {
+      console.error('Socket encountered error: ', err.message, 'Closing socket');
+      socketRef.current.close();
+    };
+
     await waitForOpenSocket(socketRef.current);
 
     socketRef.current.onmessage = function (event) {
@@ -58,8 +75,6 @@ function Admin() {
         setUsers(data.data.value);
       }
     }
-
-    send('name', {value: 'admin'});
 
     console.log("Web socket: connected");
   }
