@@ -29,24 +29,21 @@ public class SocketHandler extends TextWebSocketHandler {
 	@Override
 	public void handleTextMessage(WebSocketSession session, TextMessage message)
 			throws InterruptedException, IOException {
-		System.out.println(message.getPayload());
-		System.out.println(adminSession);
-		System.out.println(clientSession);
-		
 		Map<String, Object> messageMap = toMap(message.getPayload());
 		String event = messageMap.get("event").toString();
 		Object data = messageMap.get("data").toString();
-
-		if ("name".equals(event)) {
+		
+		if ("screen".equals(event)) {
+			System.out.println(message.getPayload());
+		} else if ("name".equals(event)) {
 			Map<String, Object> dataMap = toMap(data.toString());
 			String name = dataMap.get("value").toString();
 			userToSessionIdMap.put(name, session.getId());
 			sessionIdToUserMap.put(session.getId(), name);
-			System.out.println(name);
 			if (name.equals("admin")) adminSession = session;
 			
 			usersUpdated();
-		} if ("connect".equals(event)) {
+		} else if ("connect".equals(event)) {
 			Map<String, Object> dataMap = toMap(data.toString());
 			String name = dataMap.get("value").toString();
 			clientSession = Optional.ofNullable(userToSessionIdMap.get(name))
@@ -56,10 +53,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			}
 		} else if (clientSession != null && adminSession != null) {
 			if (session.getId().equals(clientSession.getId())) {
-				System.out.println("sending to admin");
 				adminSession.sendMessage(message);
 			} else if (session.getId().equals(adminSession.getId())) {
-				System.out.println("sending to client");
 				clientSession.sendMessage(message);
 			}
 		}
@@ -92,7 +87,6 @@ public class SocketHandler extends TextWebSocketHandler {
 			map.put("data", usersMap);
 			TextMessage msg = new TextMessage(new Gson().toJson(map).getBytes());
 			adminSession.sendMessage(msg);
-			System.out.println(msg.getPayload());
 		}
 	}
 	

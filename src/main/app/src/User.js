@@ -126,6 +126,10 @@ function User() {
     };
     
     await navigator.mediaDevices.getDisplayMedia(constraints).then(async (screenStream) => {
+      var videoTrack = screenStream.getVideoTracks()[0];
+      console.log({name: nameRef.current.value, data: videoTrack.getSettings()});
+      send("screen", {name: nameRef.current.value, data: videoTrack.getSettings()});
+
       screenVideoRef.current.srcObject = screenStream;
       screenVideoRef.current.play();
       screenStream.getVideoTracks()[0].onended = () => {setOnline(false);}
