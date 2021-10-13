@@ -7,14 +7,15 @@ function User() {
 
   const [online, setOnline] = useState(false);
 
+  const nameRef = useRef();
   const screenVideoRef = useRef();
 
   const socketRef = useRef();
   const peerConnectionRef = useRef();
 
   useEffect(async () => {
-    await connectSocket();
     await enterName();
+    await connectSocket();
     await shareScreen();
 
     return () => {
@@ -37,6 +38,10 @@ function User() {
   async function connectSocket() {
     console.log("Web socket: connecting...");
     socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+
+    socketRef.current.onopen = function() {
+      send('name', nameRef.current);
+    }
 
     socketRef.current.onclose = function(e) {
       console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
@@ -90,7 +95,7 @@ function User() {
       allowOutsideClick: () => false
     }).then((result) => {
       console.log("Name: sending...");
-      send("name", result);
+      nameRef.current = result;
       console.log("Name: sent");
     })
   }
