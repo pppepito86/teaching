@@ -114,7 +114,7 @@ function User() {
 
   function connectPeer() {
     if (peerConnectionRef.current) {
-      //peerConnectionRef.current.close();
+      peerConnectionRef.current.close();
     }
     
     peerConnectionRef.current = new RTCPeerConnection({
@@ -123,10 +123,7 @@ function User() {
 
     peerConnectionRef.current.onicecandidate = function(event) {
       if (event.candidate) {
-        socketRef.current.send(JSON.stringify({
-          event : "candidate",
-          data : event.candidate
-        }))
+        send("candidate", event.candidate);
       }
     }
 
@@ -137,10 +134,7 @@ function User() {
       return peerConnectionRef.current.setLocalDescription(offer);
     })
     .then(function() {
-      socketRef.current.send(JSON.stringify({
-        event: 'offer',
-        data: peerConnectionRef.current.localDescription
-      }));
+      send('offer', peerConnectionRef.current.localDescription);
     })
     .catch(function(reason) {
       // An error occurred, so handle the failure to connect
