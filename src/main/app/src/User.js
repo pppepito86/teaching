@@ -83,21 +83,22 @@ function User() {
   }
 
   async function enterName() {
-    await Swal.fire({
+    const { value: name } = await Swal.fire({
       title: 'Your name',
       input: 'text',
-      inputAttributes: {
-        autocapitalize: 'off'
+      inputValidator: (value) => {
+        if (!value) {
+          return 'Enter your name!'
+        }
       },
-      showCancelButton: false,
-      confirmButtonText: 'OK',
-      showLoaderOnConfirm: true,
       allowOutsideClick: () => false
-    }).then((result) => {
-      console.log("Name: sending...");
-      nameRef.current = result;
-      console.log("Name: sent");
-    })
+    });
+    
+    if (name) {
+      nameRef.current = {value: name};
+    } else {
+      await enterName();
+    }
   }
 
   async function shareScreen() {
