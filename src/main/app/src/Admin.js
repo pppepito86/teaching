@@ -6,7 +6,6 @@ import * as Stomp from 'stompjs';
 function Admin() {
 
   const screenVideoRef = useRef();
-  const socketRef = useRef();
   const stompClientRef = useRef();
   const peerConnectionRef = useRef();
 
@@ -20,20 +19,8 @@ function Admin() {
     connect();
   }, []);
 
-  function waitForOpenSocket(socket) {
-    return new Promise((resolve) => {
-      if (socket.readyState !== socket.OPEN) {
-        socket.addEventListener("open", (_) => {
-          resolve();
-        })
-      } else {
-        resolve();
-      }
-    });
-  }
-
   async function connectSocket() {
-    const sock = new SockJS(`https://${process.env.REACT_APP_URL}/ws`);
+    const sock = new SockJS(`${process.env.REACT_APP_URL}/ws`);
     const stompClient = Stomp.over(sock);
 
     stompClient.connect('admin', '',
