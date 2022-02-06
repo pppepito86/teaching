@@ -2,6 +2,8 @@ import logo from './logo.svg';
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
+import * as SockJS from 'sockjs-client';
+import * as Stomp from 'stompjs';
 
 function User() {
 
@@ -11,6 +13,7 @@ function User() {
   const screenVideoRef = useRef();
 
   const socketRef = useRef();
+  const stompClientRef = useRef();
   const peerConnectionRef = useRef();
 
   useEffect(async () => {
@@ -22,6 +25,14 @@ function User() {
       stopSharing();
     }
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // stompClientRef.current.send("/app/connect", {}, "hello123");
+    }, 5000)
+  
+    return () => clearInterval(interval)
+  }, [])
 
   function waitForOpenSocket(socket) {
     return new Promise((resolve) => {
@@ -36,50 +47,47 @@ function User() {
   }
 
   async function connectSocket() {
-    console.log("Web socket: connecting...");
-    socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+    const sock = new SockJS(`https://${process.env.REACT_APP_URL}/ws'');
+    const stompClient = Stomp.over(sock);
 
-    socketRef.current.onopen = function() {
-      send('name', nameRef.current);
-    }
+    stompClient.connect(nameRef.current.value, '',
+      function() {
+        stompClient.send("/app/welcome", {}, "welcome");
+        
+        stompClient.subscribe(`/topic/announcements`, function (msg) {
+        });
 
-    socketRef.current.onclose = function(e) {
-      console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
-      setTimeout(function() {
-        connectSocket();
-      }, 1000);
-    };
-  
-    socketRef.current.onerror = function(err) {
-      console.error('Socket encountered error: ', err.message, 'Closing socket');
-      socketRef.current.close();
-    };
-
-    await waitForOpenSocket(socketRef.current);
-
-    socketRef.current.onmessage = function (event) {
-      var data = JSON.parse(event.data);
-      console.log("p2p: receiving answer");
-      if (data.event === 'candidate') {
-        console.log("add candidate" + data);
-        peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.data));
+        stompClient.subscribe('/user/queue/message', function (msg) {
+          var data = JSON.parse(msg.body);
+          console.log("p2p: receiving answer");
+          if (data.event === 'candidate') {
+            console.log("add candidate" + data);
+            peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.data));
+          }
+          if (data.event === 'answer') {
+            peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
+          }
+          if (data.event === 'connect') {
+            connectPeer();
+          }
+        });
+        
+        stompClientRef.current = stompClient;
+      },
+      function stompFailure(error) {
+        console.log(error);
+          setTimeout(connectSocket, 2000);
       }
-      if (data.event === 'answer') {
-        peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
-      }
-      if (data.event === 'connect') {
-        connectPeer();
-      }
-    }
-
-    console.log("Web socket: connected");
+    );
   }
 
   function send(event, data) {
-    socketRef.current.send(JSON.stringify({
+    const msg = JSON.stringify({
       event : event,
       data : data
-    }));
+    });
+
+    stompClientRef.current.send("/app/connect", {}, msg);
   }
 
   async function enterName() {

@@ -1,10 +1,13 @@
 import './App.css';
 import { useEffect, useRef, useState } from 'react';
+import * as SockJS from 'sockjs-client';
+import * as Stomp from 'stompjs';
 
 function Admin() {
 
   const screenVideoRef = useRef();
   const socketRef = useRef();
+  const stompClientRef = useRef();
   const peerConnectionRef = useRef();
 
   const [users, setUsers] = useState([]);
@@ -30,60 +33,57 @@ function Admin() {
   }
 
   async function connectSocket() {
-    console.log("Web socket: connecting...");
-    socketRef.current = new WebSocket(`wss://${process.env.REACT_APP_URL}/socket`);
+    const sock = new SockJS(`https://${process.env.REACT_APP_URL}/ws'');
+    const stompClient = Stomp.over(sock);
 
-    socketRef.current.onopen = function() {
-      send('name', {value: 'admin'});
-    }
-
-    socketRef.current.onclose = function(e) {
-      console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
-      setTimeout(function() {
-        connectSocket();
-      }, 1000);
-    };
-  
-    socketRef.current.onerror = function(err) {
-      console.error('Socket encountered error: ', err.message, 'Closing socket');
-      socketRef.current.close();
-    };
-
-    await waitForOpenSocket(socketRef.current);
-
-    socketRef.current.onmessage = function (event) {
-      var data = JSON.parse(event.data);
-      console.log(data.data);
-      if (data.event === 'offer') {
-        peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
-        peerConnectionRef.current.createAnswer().then(function(answer) {
-          console.log(answer);
-          return peerConnectionRef.current.setLocalDescription(answer);
-        })
-        .then(function() {
-          send('answer',peerConnectionRef.current.localDescription);
-        })
-        .catch(function(reason) {
-          // An error occurred, so handle the failure to connect
+    stompClient.connect('admin', '',
+      function() {
+        stompClient.subscribe(`/topic/announcements`, function (msg) {
         });
-      }
-      if (data.event === 'candidate') {
-        console.log("add candidate" + data);
-        peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.data));
-      }
-      if (data.event === 'users') {
-        setUsers(data.data.value);
-      }
-    }
 
-    console.log("Web socket: connected");
+        stompClient.subscribe('/user/queue/message', function (msg) {
+          var data = JSON.parse(msg.body);
+          if (data.event === 'offer') {
+            peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.data));
+            peerConnectionRef.current.createAnswer().then(function(answer) {
+              console.log(answer);
+              return peerConnectionRef.current.setLocalDescription(answer);
+            })
+            .then(function() {
+              send('answer',peerConnectionRef.current.localDescription);
+            })
+            .catch(function(reason) {
+              // An error occurred, so handle the failure to connect
+            });
+          }
+          if (data.event === 'candidate') {
+            console.log("add candidate" + data);
+            peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.data));
+          }
+          if (data.event === 'users') {
+            console.log("users here")
+            setUsers(data.data.value);
+          }
+        });
+        
+        stompClient.send("/app/welcome", {}, "welcome");
+
+        stompClientRef.current = stompClient;
+      },
+      function stompFailure(error) {
+        console.log(error);
+          setTimeout(connectSocket, 2000);
+      }
+    );
   }
 
   function send(event, data) {
-    socketRef.current.send(JSON.stringify({
+    const msg = JSON.stringify({
       event : event,
       data : data
-    }));
+    });
+
+    stompClientRef.current.send("/app/connect", {}, msg);
   }
 
   async function connectPeer(user) {

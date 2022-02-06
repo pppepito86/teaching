@@ -17,7 +17,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-@Component
+//@Component
 public class SocketHandler extends TextWebSocketHandler {
 
 	private WebSocketSession clientSession;
