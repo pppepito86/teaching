@@ -33,7 +33,7 @@ function Admin() {
   }
 
   async function connectSocket() {
-    const sock = new SockJS(`https://${process.env.REACT_APP_URL}/ws'');
+    const sock = new SockJS(`https://${process.env.REACT_APP_URL}/ws`);
     const stompClient = Stomp.over(sock);
 
     stompClient.connect('admin', '',
